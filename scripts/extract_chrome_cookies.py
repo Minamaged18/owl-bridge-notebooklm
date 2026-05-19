@@ -1,120 +1,211 @@
 #!/usr/bin/env python3
 """
-Extract Google cookies from Chrome's encrypted SQLite database
-and save them in Playwright storage format for notebooklm-mcp.
+🦉 OWL Bridge — Chrome Cookie Extractor for NotebookLM
+
+Extracts Google authentication cookies from Chrome's encrypted SQLite database
+and converts them to Playwright storage state format.
+
+Why not CDP? Chrome's Network.getAllCookies returns 0 cookies for HTTP-only/
+secure contexts. This script reads the SQLite DB directly via browser_cookie3.
 
 Usage:
-    python3 scripts/extract_chrome_cookies.py [--output PATH] [--verify]
+    python3 extract_chrome_cookies.py --output state.json
+    python3 extract_chrome_cookies.py --chrome-profile /path/to/profile --output state.json
+    python3 extract_chrome_cookies.py --state state.json --verify
 """
 
 import json
-import argparse
 import sys
+import os
+import argparse
 from pathlib import Path
 
-GOOGLE_DOMAINS = [
-    '.google.com', 'accounts.google.com', 'notebooklm.google.com',
-    'mail.google.com', 'myaccount.google.com', 'drive.google.com',
-    '.youtube.com', 'www.google.com', '.google.com.eg',
-    'ogs.google.com', 'studio.workspace.google.com',
-    '.gemini.google.com', 'photos.google.com',
-]
+def get_chrome_cookie_db_path(custom_profile=None):
+    """Get the path to Chrome's Cookies SQLite database."""
+    if custom_profile:
+        db_path = Path(custom_profile) / "Default" / "Cookies"
+        if db_path.exists():
+            return str(db_path)
+        # Try without Default subdirectory
+        db_path = Path(custom_profile) / "Cookies"
+        if db_path.exists():
+            return str(db_path)
+    
+    home = Path.home()
+    candidates = [
+        home / ".config" / "google-chrome" / "Default" / "Cookies",
+        home / ".config" / "google-chrome-beta" / "Default" / "Cookies",
+        home / ".config" / "chromium" / "Default" / "Cookies",
+        home / "snap" / "chromium" / "current" / ".config" / "chromium" / "Default" / "Cookies",
+        home / ".cache" / "ms-playwright" / "chromium-1217" / "chrome-linux64" / "Default" / "Cookies",
+        home / ".cache" / "ms-playwright" / "chromium-1223" / "chrome-linux64" / "Default" / "Cookies",
+    ]
+    
+    for candidate in candidates:
+        if candidate.exists():
+            return str(candidate)
+    
+    return None
 
-CHROME_DB_PATHS = [
-    '/root/.notebooklm/profiles/default/browser_profile/Default/Cookies',
-    '/root/.config/google-chrome/Default/Cookies',
-    '/root/.config/chromium/Default/Cookies',
-    str(Path.home() / '.config/google-chrome/Default/Cookies'),
-    str(Path.home() / '.config/chromium/Default/Cookies'),
-]
-
-REQUIRED_COOKIES = ['SID', '__Secure-1PSIDTS']
-RECOMMENDED_COOKIES = ['SID', 'HSID', 'SSID', 'APISID', 'SAPISID',
-                       '__Secure-1PSID', '__Secure-3PSID',
-                       '__Secure-1PSIDTS', '__Secure-3PSIDTS',
-                       '__Secure-OSID', 'OSID', 'NID']
-
-
-def find_chrome_db(custom_path=None):
-    if custom_path:
-        if Path(custom_path).exists():
-            return custom_path
-        print(f"Custom path not found: {custom_path}")
-        sys.exit(1)
-    for path in CHROME_DB_PATHS:
-        if Path(path).exists():
-            return path
-    print("Chrome cookies database not found!")
-    sys.exit(1)
-
-
-def extract_cookies(chrome_db):
+def extract_cookies(db_path, domain=".google.com"):
+    """Extract cookies from Chrome's SQLite database."""
     try:
         import browser_cookie3
     except ImportError:
-        print("browser_cookie3 not installed! Run: pip install browser_cookie3")
+        print("❌ browser_cookie3 not installed. Run: pip install browser_cookie3")
+        sys.exit(1)
+    
+    try:
+        # Determine browser type from path
+        db_str = str(db_path).lower()
+        if "chrome" in db_str and "chromium" not in db_str:
+            cookies = browser_cookie3.chrome(
+                cookie_file=db_path,
+                domain_name=domain
+            )
+        else:
+            cookies = browser_cookie3.chromium(
+                cookie_file=db_path,
+                domain_name=domain
+            )
+        
+        result = []
+        for cookie in cookies:
+            result.append({
+                "name": cookie.name,
+                "value": cookie.value,
+                "domain": cookie.domain,
+                "path": cookie.path,
+                "httpOnly": cookie.has_nonstandard_attr("httponly") or cookie.name.startswith("__Secure"),
+                "secure": cookie.secure,
+                "sameSite": "Lax"
+            })
+        
+        return result
+    
+    except Exception as e:
+        print(f"❌ Error extracting cookies: {e}")
+        print("   Make sure Chrome is fully closed before extracting.")
         sys.exit(1)
 
-    all_cookies = []
-    for domain in GOOGLE_DOMAINS:
-        try:
-            cj = browser_cookie3.chrome(cookie_file=chrome_db, domain_name=domain)
-            for c in cj:
-                all_cookies.append({
-                    'name': c.name, 'value': c.value, 'domain': c.domain,
-                    'path': getattr(c, 'path', '/'),
-                    'secure': getattr(c, 'secure', True),
-                    'httpOnly': getattr(c, 'httpOnly', False),
-                })
-        except Exception:
-            pass
+def to_playwright_format(cookies):
+    """Convert to Playwright storage state format."""
+    return {"cookies": cookies}
 
-    seen = set()
-    unique = []
-    for c in all_cookies:
-        key = (c['name'], c['domain'])
-        if key not in seen and c['value']:
-            seen.add(key)
-            unique.append(c)
-    return unique
-
+def verify_state(state_path):
+    """Verify a state.json file has the required cookies."""
+    with open(state_path) as f:
+        data = json.load(f)
+    
+    cookies = data.get("cookies", [])
+    domains = set(c.get("domain", "") for c in cookies)
+    names = set(c.get("name", "") for c in cookies)
+    
+    print(f"📋 Found {len(cookies)} cookies across {len(domains)} domains")
+    
+    for domain in sorted(domains):
+        domain_cookies = [c for c in cookies if c.get("domain") == domain]
+        print(f"   {domain}: {len(domain_cookies)} cookies")
+        for c in domain_cookies:
+            value_preview = c.get("value", "")[:20] + "..." if len(c.get("value", "")) > 20 else c.get("value", "")
+            print(f"     - {c['name']} = {value_preview}")
+    
+    # Check required cookies
+    has_sid = "SID" in names
+    has_psidts = "__Secure-1PSIDTS" in names
+    
+    print()
+    if has_sid and has_psidts:
+        print("✅ Valid! Has required authentication cookies")
+        print(f"   Required: SID {'✓' if has_sid else '✗'} | __Secure-1PSIDTS {'✓' if has_psidts else '✗'}")
+        return True
+    else:
+        print("⚠️  Missing required cookies!")
+        print(f"   Required: SID {'✓' if has_sid else '✗'} | __Secure-1PSIDTS {'✓' if has_psidts else '✗'}")
+        print("   You may need to log into Google again via VNC.")
+        return False
 
 def main():
-    parser = argparse.ArgumentParser(description='Extract Google cookies from Chrome')
-    parser.add_argument('--chrome-db', help='Path to Chrome cookies database')
-    parser.add_argument('--output', '-o',
-                        default='/root/.local/share/notebooklm-mcp/browser_state/state.json')
-    parser.add_argument('--verify', action='store_true')
+    parser = argparse.ArgumentParser(
+        description="🦉 OWL Bridge — Extract Chrome cookies for NotebookLM auth",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        "--chrome-profile",
+        help="Path to Chrome profile directory (auto-detected if not specified)"
+    )
+    parser.add_argument(
+        "--output", "-o",
+        help="Output path for state.json"
+    )
+    parser.add_argument(
+        "--state", "-s",
+        help="Verify an existing state.json file"
+    )
+    parser.add_argument(
+        "--verify",
+        action="store_true",
+        help="Verify mode (use with --state)"
+    )
+    parser.add_argument(
+        "--domain",
+        default=".google.com",
+        help="Cookie domain to extract (default: .google.com)"
+    )
+    
     args = parser.parse_args()
-
-    chrome_db = find_chrome_db(args.chrome_db)
-    print(f"Chrome DB: {chrome_db}")
-
-    cookies = extract_cookies(chrome_db)
+    
+    # Verify mode
+    if args.verify or args.state:
+        state_path = args.state or args.output
+        if not state_path:
+            print("❌ Specify --state <path> to verify")
+            sys.exit(1)
+        verify_state(state_path)
+        return
+    
+    # Extract mode
+    db_path = get_chrome_cookie_db_path(args.chrome_profile)
+    
+    if not db_path:
+        print("❌ Chrome cookie database not found!")
+        print("   Searched standard locations. Use --chrome-profile to specify custom path.")
+        sys.exit(1)
+    
+    print(f"🔍 Reading cookies from: {db_path}")
+    
+    cookies = extract_cookies(db_path, args.domain)
+    
     if not cookies:
-        print("No Google cookies found!")
+        print(f"❌ No cookies found for domain: {args.domain}")
+        print("   Make sure you're logged into Google in Chrome.")
         sys.exit(1)
+    
+    print(f"✅ Extracted {len(cookies)} cookies for {args.domain}")
+    
+    state = to_playwright_format(cookies)
+    
+    # Determine output path
+    output_path = args.output
+    if not output_path:
+        # Default to MCP server's browser_state directory
+        home = Path.home()
+        default_dir = home / ".local" / "share" / "notebooklm-mcp" / "browser_state"
+        default_dir.mkdir(parents=True, exist_ok=True)
+        output_path = str(default_dir / "state.json")
+    
+    # Ensure output directory exists
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+    
+    with open(output_path, "w") as f:
+        json.dump(state, f, indent=2)
+    
+    print(f"💾 Saved to: {output_path}")
+    print()
+    print("Next steps:")
+    print(f"  1. Verify: python3 {sys.argv[0]} --state {output_path} --verify")
+    print(f"  2. Start MCP server: npx notebooklm-mcp")
+    print(f"  3. Or inject via tool: inject_cookies(state_path=\"{output_path}\")")
 
-    storage_state = {'cookies': cookies, 'origins': []}
-    Path(args.output).parent.mkdir(parents=True, exist_ok=True)
-    with open(args.output, 'w') as f:
-        json.dump(storage_state, f, indent=2)
-    print(f"Saved {len(cookies)} cookies to {args.output}")
-
-    # Verify
-    names = {c['name'] for c in cookies}
-    for name in REQUIRED_COOKIES:
-        print(f"  {'OK' if name in names else 'MISSING'} {name} (required)")
-    for name in RECOMMENDED_COOKIES:
-        if name not in REQUIRED_COOKIES:
-            print(f"  {'OK' if name in names else 'MISSING'} {name}")
-
-    if not all(n in names for n in REQUIRED_COOKIES):
-        print("WARNING: Some required cookies missing!")
-        sys.exit(1)
-
-    print("Done!")
-
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
