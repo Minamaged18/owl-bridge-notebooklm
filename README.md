@@ -135,6 +135,53 @@ Auth tools:
 
 To force a visible browser for any browser-driven tool, pass `show_browser=true` or `browser_options.show=true` on the tool call.
 
+### Headless VPS / Server (No Display)
+
+When running on a headless server, Google's anti-bot detection blocks the auto-login flow with CAPTCHA challenges. The solution is to log in via a VNC-displayed Chrome, then inject the cookies:
+
+**Step 1: Set up VNC + Chrome on your server**
+
+```bash
+# Start Xvfb virtual display
+Xvfb :99 -screen 0 1920x1080x24 -ac +extension GLX +render -noreset &
+
+# Start x11vnc
+DISPLAY=:99 x11vnc -display :99 -forever -shared -rfbport 5900 -noxdamage &
+
+# Start websockify (noVNC — access via browser)
+websockify --web /usr/share/novnc/ 6080 localhost:5900 &
+
+# Start Chrome with persistent profile
+DISPLAY=:99 chromium --no-sandbox --disable-gpu \
+  --no-first-run --no-default-browser-check \
+  --user-data-dir=/root/.notebooklm/profiles/default/browser_profile \
+  https://notebooklm.google.com &
+```
+
+Access VNC at `http://YOUR_IP:6080/vnc.html`, then log into Google.
+
+**Step 2: Extract cookies**
+
+```bash
+pip install browser_cookie3
+python3 scripts/extract_chrome_cookies.py \
+  --output ~/.local/share/notebooklm-mcp/browser_state/state.json
+```
+
+**Step 3: Inject cookies into the MCP server**
+
+Option A — Restart the MCP server (it auto-loads state.json):
+```bash
+npx notebooklm-mcp
+```
+
+Option B — Use the `inject_cookies` tool without restarting:
+```
+inject_cookies(state_path="~/.local/share/notebooklm-mcp/browser_state/state.json")
+```
+
+**Architecture note**: `browser_cookie3` reads Chrome's encrypted SQLite cookies database directly, bypassing the CDP limitation where `Network.getAllCookies` returns 0 cookies for HTTP-only/secure cookies. The cookies must be in Playwright format: `{"cookies": [{"name": "SID", "value": "...", "domain": ".google.com"}]}`.
+
 ---
 
 ## Transports
