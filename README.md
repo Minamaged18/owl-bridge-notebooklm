@@ -343,6 +343,22 @@ npm run check
 
 ---
 
+## Skills & Documentation
+
+OWL Bridge includes a complete skill system for AI agents:
+
+| Skill | Purpose |
+|---|---|
+| 🦉 [owl-bridge](skills/owl-bridge/SKILL.md) | Main MCP server guide — all tools, config, workflows |
+| 🔑 [auth-fix](skills/auth-fix/SKILL.md) | Fix authentication — cookie extraction, Playwright format |
+| 🖥️ [vnc-setup](skills/vnc-setup/SKILL.md) | VNC + Chrome setup for headless servers |
+| 🐍 [python-client](skills/python-client/SKILL.md) | Use notebooklm Python client directly |
+| 🔗 [integrations](skills/integrations/) | Claude Code, Cursor, Hermes, Codex, HTTP transport |
+
+📚 **[Full Skill Registry](skills/SKILLS.md)** — problem → skill mapping, dependency pipeline, file paths.
+
+---
+
 ## License
 
 MIT. See [LICENSE](./LICENSE).
