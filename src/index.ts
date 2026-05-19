@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
 /**
- * NotebookLM MCP Server
+ * 🦉 OWL Bridge — NotebookLM MCP Server
  *
- * MCP Server for Google NotebookLM - Chat with Gemini 2.5 through NotebookLM
- * with session support and human-like behavior!
+ * A next-gen MCP server for Google NotebookLM with cookie injection,
+ * VNC + headless server support, and stealth Chrome automation.
  *
  * Features:
  * - Session-based contextual conversations
@@ -12,10 +12,13 @@
  * - Human-like typing and mouse movements
  * - Persistent browser fingerprint
  * - Stealth mode with Patchright
- * - Claude Code integration via npx
+ * - ✨ Cookie injection for headless VPS (bypasses Google CAPTCHA)
+ * - ✨ VNC workflow support (login via browser, extract cookies)
+ * - Claude Code / Cursor / Hermes Agent integration
  *
  * Usage:
  *   npx notebooklm-mcp
+ *   npx owl-bridge-notebooklm
  *   node dist/index.js
  *
  * Environment Variables:
@@ -27,7 +30,7 @@
  *   MAX_SESSIONS - Maximum concurrent sessions (default: 10)
  *   SESSION_TIMEOUT - Session timeout in seconds (default: 900)
  *
- * Based on the Python NotebookLM API implementation
+ * Fork of PleasePrompto/notebooklm-mcp with headless server fixes.
  */
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
