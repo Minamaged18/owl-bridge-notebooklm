@@ -46,7 +46,8 @@ skills/
 | 2 | **auth-fix** 🔑 | Fix auth failures — cookie extraction, Playwright format | [`auth-fix/SKILL.md`](./auth-fix/SKILL.md) |
 | 3 | **vnc-setup** 🖥️ | Virtual display + VNC + Chrome for headless servers | [`vnc-setup/SKILL.md`](./vnc-setup/SKILL.md) |
 | 4 | **python-client** 🐍 | Use notebooklm Python client directly (bypass MCP) | [`python-client/SKILL.md`](./python-client/SKILL.md) |
-| 5 | **integrations** 🔗 | Connect to Claude, Cursor, Hermes, Codex, HTTP clients | [`integrations/`](./integrations/) |
+| 5 | **gemini-cli** 🤖 | Google Gemini CLI — headless OAuth, coding, file ops | [`gemini-cli/SKILL.md`](./gemini-cli/SKILL.md) |
+| 6 | **integrations** 🔗 | Connect to Claude, Cursor, Hermes, Codex, HTTP clients | [`integrations/`](./integrations/) |
 
 ---
 
@@ -126,7 +127,23 @@ Xvfb (virtual display :99)
 
 ---
 
-### 5. 🔗 integrations — AI Client Integration Guides
+### 5. 🤖 gemini-cli — Google Gemini CLI
+
+**When to use:** Using Google's Gemini CLI on a headless server, authenticating via OAuth, or integrating with OWL Bridge.
+
+**What it does:**
+- Install and configure Gemini CLI
+- Authenticate via NO_BROWSER + VNC + CDP OAuth flow
+- Interactive and non-interactive modes
+- YOLO mode, model selection, MCP server integration
+- Works with Google One AI Pro subscription
+
+**Key files:**
+- `scripts/gemini_oauth.py` — Automated OAuth helper
+
+---
+
+### 6. 🔗 integrations — AI Client Integration Guides
 
 **When to use:** Connecting OWL Bridge to a specific AI client.
 
@@ -192,6 +209,8 @@ Use the Python client directly when the MCP server is problematic.
 | "Connect to Cursor" | [integrations/cursor.md](./integrations/cursor.md) |
 | "Connect to Hermes Agent" | [integrations/hermes-agent.md](./integrations/hermes-agent.md) |
 | "Connect to n8n/Zapier" | [integrations/http-transport.md](./integrations/http-transport.md) |
+| "Gemini CLI auth failed" | [gemini-cli](./gemini-cli/SKILL.md) |
+| "Use Gemini CLI on headless server" | [gemini-cli](./gemini-cli/SKILL.md) |
 | "studio_status MCP tool fails" | [auth-fix](./auth-fix/SKILL.md) (use Python client) |
 | "Audio/Video generation fails" | [python-client](./python-client/SKILL.md) (polling pattern) |
 
@@ -211,10 +230,14 @@ Use the Python client directly when the MCP server is problematic.
 | Chrome deps reference | `skills/vnc-setup/references/chrome-deps.md` |
 | Python client skill | `skills/python-client/SKILL.md` |
 | Python quickstart script | `skills/python-client/scripts/notebooklm_quickstart.py` |
+| Gemini CLI skill | `skills/gemini-cli/SKILL.md` |
+| Gemini OAuth helper | `skills/gemini-cli/scripts/gemini_oauth.py` |
 | Integration guides | `skills/integrations/` |
 | Chrome cookies DB | `~/.config/google-chrome/Default/Cookies` |
 | Storage state (notebooklm-py) | `~/.notebooklm/profiles/default/storage_state.json` |
 | MCP state (notebooklm-mcp) | `~/.local/share/notebooklm-mcp/browser_state/state.json` |
+| Gemini OAuth creds | `~/.gemini/oauth_creds.json` |
+| Gemini settings | `~/.gemini/settings.json` |
 
 ---
 
